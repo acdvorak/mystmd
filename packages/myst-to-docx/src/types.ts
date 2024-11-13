@@ -54,6 +54,7 @@ export type Options = {
   useFieldsForCrossReferences?: boolean;
   getImageBuffer: (src: string) => Buffer;
   getImageDimensions?: (src: string) => { width: number; height: number };
+  getSvgFallback?: (src: string) => { buffer: Buffer; width?: number; height?: number };
   maxImageWidth?: number;
   math?: MathPlugins;
 };

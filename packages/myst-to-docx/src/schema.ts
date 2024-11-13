@@ -74,7 +74,6 @@ import {
   getImageWidth,
   MAX_DOCX_IMAGE_WIDTH,
   SUPPORTED_IMAGE_TYPES,
-  svgToPng,
 } from './utils.js';
 import { createNumbering } from './numbering.js';
 
@@ -268,16 +267,40 @@ const image: Handler<Image> = (state, node) => {
   const height = width * (aspect ?? 1);
   const type = getImageType(buffer);
   if (!type) {
-    fileError(state.file, `Error with checking image type for "${node.url}".`, {
+    const supportedTypes = JSON.stringify(SUPPORTED_IMAGE_TYPES);
+    fileError(state.file, `Error with detecting image type for "${node.url}".`, {
       node,
       source: 'myst-to-docx:image',
-      note: `Ensure that image is one of the supported types: ${JSON.stringify(SUPPORTED_IMAGE_TYPES)}.`,
+      note: `Ensure that image is one of the supported types: ${supportedTypes}.`,
       ruleId: RuleId.docxRenders,
     });
     return;
   }
 
   if (type === 'svg') {
+    const rasterTypes = JSON.stringify(SUPPORTED_IMAGE_TYPES.filter((t) => t !== 'svg'));
+    const fallbackImage = state.options.getSvgFallback?.(node.url);
+    if (!fallbackImage) {
+      fileError(state.file, `Error with rendering SVG image "${node.url}".`, {
+        node,
+        source: 'myst-to-docx:image',
+        note: `SVG images require getSvgFallback() to return a raster image of type ${rasterTypes}.`,
+        ruleId: RuleId.docxRenders,
+      });
+      return;
+    }
+
+    const fallbackType = getImageType(fallbackImage?.buffer);
+    if (!fallbackType || fallbackType === 'svg') {
+      fileError(state.file, `Error with detecting fallback image type for "${node.url}".`, {
+        node,
+        source: 'myst-to-docx:image',
+        note: `Ensure that getSvgFallback() returns one of the supported types: ${rasterTypes}.`,
+        ruleId: RuleId.docxRenders,
+      });
+      return;
+    }
+
     state.current.push(
       new ImageRun({
         type,
@@ -287,8 +310,8 @@ const image: Handler<Image> = (state, node) => {
           height,
         },
         fallback: {
-          type: 'png',
-          data: svgToPng(buffer),
+          type: fallbackType,
+          data: fallbackImage.buffer,
         },
       }),
     );

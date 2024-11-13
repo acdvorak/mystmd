@@ -22,7 +22,6 @@ import { selectAll } from 'unist-util-select';
 import type { IFootnotes, Options } from './types.js';
 import type { GenericParent } from 'myst-common';
 import imageSize from 'image-size';
-import { Resvg } from '@resvg/resvg-js';
 import type { ISizeCalculationResult } from 'image-size/dist/types/interface.js';
 
 export function createShortId() {
@@ -81,13 +80,6 @@ function isSupportedImageType(type: string | undefined): type is ImageType {
 export function getImageType(buffer: Buffer): ImageType | undefined {
   const { type } = imageSize.imageSize(buffer);
   return isSupportedImageType(type) ? type : undefined;
-}
-
-export function svgToPng(svg: string | Buffer): Uint8Array {
-  const resvg = new Resvg(svg, {});
-  const pngData = resvg.render();
-  const pngBuffer = pngData.asPng();
-  return Uint8Array.from(pngBuffer);
 }
 
 const DEFAULT_IMAGE_WIDTH = 70;
