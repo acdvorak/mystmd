@@ -9,7 +9,6 @@ import type {
   ParagraphChild,
   Table,
 } from 'docx';
-import type { IPropertiesOptions } from 'docx/build/file/core-properties';
 
 export type StateData = {
   maxImageWidth?: number;
@@ -65,5 +64,5 @@ export type Mutable<T> = {
   -readonly [k in keyof T]: T[k];
 };
 
-export type IFootnotes = Mutable<Required<IPropertiesOptions>['footnotes']>;
+export type IFootnotes = Record<string, { readonly children: readonly Paragraph[] }>;
 export type INumbering = INumberingOptions['config'][0];

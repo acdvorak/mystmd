@@ -64,16 +64,19 @@ import type {
   Block,
   InlineExpression,
 } from 'myst-spec-ext';
+import { imageSize } from 'image-size';
 import type { Handler, Mutable } from './types.js';
 import {
   createReference,
   createReferenceBookmark,
   createShortId,
+  getImageType,
   getImageWidth,
   MAX_DOCX_IMAGE_WIDTH,
+  SUPPORTED_IMAGE_TYPES,
+  svgToPng,
 } from './utils.js';
 import { createNumbering } from './numbering.js';
-import sizeOf from 'buffer-image-size';
 
 const text: Handler<Text> = (state, node) => {
   state.text(node.value ?? '');
@@ -240,9 +243,8 @@ const code: Handler<Code> = (state, node) => {
 function getAspect(buffer: Buffer, size?: { width: number; height: number }): number | undefined {
   if (size) return size.height / size.width;
   try {
-    // This does not run client side
-    const dimensions = sizeOf(buffer);
-    return dimensions.height / dimensions.width;
+    const { width, height } = imageSize(buffer);
+    return height && width ? height / width : undefined;
   } catch (error) {
     return undefined;
   }
@@ -260,17 +262,50 @@ const image: Handler<Image> = (state, node) => {
       note: 'Either provide dimensions of the image with "getImageDimensions" or ensure that the result is a Buffer.',
       ruleId: RuleId.docxRenders,
     });
+    return;
   }
-  state.current.push(
-    new ImageRun({
-      data: buffer,
-      transformation: {
-        width,
-        height: width * (aspect ?? 1),
-      },
-    }),
-  );
-  let alignment: AlignmentType;
+
+  const height = width * (aspect ?? 1);
+  const type = getImageType(buffer);
+  if (!type) {
+    fileError(state.file, `Error with checking image type for "${node.url}".`, {
+      node,
+      source: 'myst-to-docx:image',
+      note: `Ensure that image is one of the supported types: ${JSON.stringify(SUPPORTED_IMAGE_TYPES)}.`,
+      ruleId: RuleId.docxRenders,
+    });
+    return;
+  }
+
+  if (type === 'svg') {
+    state.current.push(
+      new ImageRun({
+        type,
+        data: buffer,
+        transformation: {
+          width,
+          height,
+        },
+        fallback: {
+          type: 'png',
+          data: svgToPng(buffer),
+        },
+      }),
+    );
+  } else {
+    state.current.push(
+      new ImageRun({
+        type,
+        data: buffer,
+        transformation: {
+          width,
+          height,
+        },
+      }),
+    );
+  }
+
+  let alignment: (typeof AlignmentType)[keyof typeof AlignmentType];
   switch (node.align) {
     case 'right':
       alignment = AlignmentType.RIGHT;

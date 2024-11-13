@@ -1,4 +1,10 @@
-import type { Footer, INumberingOptions, ISectionOptions, ParagraphChild } from 'docx';
+import type {
+  Footer,
+  IImageOptions,
+  INumberingOptions,
+  ISectionOptions,
+  ParagraphChild,
+} from 'docx';
 import {
   InternalHyperlink,
   SimpleField,
@@ -15,6 +21,9 @@ import type { PageFrontmatter } from 'myst-frontmatter';
 import { selectAll } from 'unist-util-select';
 import type { IFootnotes, Options } from './types.js';
 import type { GenericParent } from 'myst-common';
+import imageSize from 'image-size';
+import { Resvg } from '@resvg/resvg-js';
+import type { ISizeCalculationResult } from 'image-size/dist/types/interface.js';
 
 export function createShortId() {
   return Math.random().toString(36).slice(2);
@@ -61,9 +70,36 @@ export async function writeDocx(
   return write(buffer);
 }
 
+export type ImageType = IImageOptions['type'];
+
+export const SUPPORTED_IMAGE_TYPES: readonly ImageType[] = ['bmp', 'gif', 'jpg', 'png', 'svg'];
+
+function isSupportedImageType(type: string | undefined): type is ImageType {
+  return Boolean(type) && SUPPORTED_IMAGE_TYPES.includes(type as ImageType);
+}
+
+export function getImageType(buffer: Buffer): ImageType | undefined {
+  const { type } = imageSize.imageSize(buffer);
+  return isSupportedImageType(type) ? type : undefined;
+}
+
+export function svgToPng(svg: string | Buffer): Uint8Array {
+  const resvg = new Resvg(svg, {});
+  const pngData = resvg.render();
+  const pngBuffer = pngData.asPng();
+  return Uint8Array.from(pngBuffer);
+}
+
 const DEFAULT_IMAGE_WIDTH = 70;
+
 const DEFAULT_PAGE_WIDTH_PIXELS = 800;
-// The docx width is about the page width of 8.5x11
+
+/**
+ * In pixels.
+ *
+ * Slightly narrower than the default document page width of an 8.5x11 inch
+ * Word doc.
+ */
 export const MAX_DOCX_IMAGE_WIDTH = 600;
 
 export function getImageWidth(width?: number | string, maxWidth = MAX_DOCX_IMAGE_WIDTH): number {
@@ -77,7 +113,7 @@ export function getImageWidth(width?: number | string, maxWidth = MAX_DOCX_IMAGE
     } else if (width.endsWith('px')) {
       return getImageWidth(Number(width.replace('px', '')) / DEFAULT_PAGE_WIDTH_PIXELS);
     }
-    console.log(`Unknown width ${width} in getImageWidth`);
+    console.log(`Unsupported width value \`${width}\` in getImageWidth()`);
     return getImageWidth(DEFAULT_IMAGE_WIDTH);
   }
   let lineWidth = width ?? DEFAULT_IMAGE_WIDTH;
@@ -86,20 +122,24 @@ export function getImageWidth(width?: number | string, maxWidth = MAX_DOCX_IMAGE
   return (lineWidth / 100) * maxWidth;
 }
 
-async function getImageDimensions(file: Blob | Buffer): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    // the following handler will fire after a successful loading of the image
-    img.onload = () => {
-      const { naturalWidth: width, naturalHeight: height } = img;
-      resolve({ width, height });
-    };
-    // and this handler will fire if there was an error with the image (like if it's not really an image or a corrupted one)
-    img.onerror = () => {
-      reject('There was some problem with the image.');
-    };
-    img.src = URL.createObjectURL(file as Blob);
-  });
+export interface ImageSize {
+  width: number;
+  height: number;
+}
+
+async function getImageDimensions(file: Blob | Buffer): Promise<ImageSize> {
+  let size: ISizeCalculationResult;
+  if (Buffer.isBuffer(file)) {
+    size = imageSize.imageSize(file);
+  } else {
+    const arrayBuffer = await file.arrayBuffer();
+    size = imageSize.imageSize(new Uint8Array(arrayBuffer));
+  }
+  const { width, height } = size;
+  return {
+    width: width || DEFAULT_IMAGE_WIDTH,
+    height: height || DEFAULT_IMAGE_WIDTH,
+  };
 }
 
 /**

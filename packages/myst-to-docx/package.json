@@ -34,8 +34,9 @@
     "build": "npm-run-all -l clean -p build:esm"
   },
   "dependencies": {
-    "buffer-image-size": "^0.6.4",
-    "docx": "^7.3.0",
+    "@resvg/resvg-js": "^2.6.2",
+    "docx": "^9.0.3",
+    "image-size": "^1.1.1",
     "myst-common": "^1.7.2",
     "myst-frontmatter": "^1.7.2",
     "myst-spec": "^0.0.5",

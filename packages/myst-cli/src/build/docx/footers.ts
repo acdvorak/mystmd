@@ -8,6 +8,7 @@ export function createFooter(logo: string) {
         children: [
           new TextRun('Created with '),
           new ImageRun({
+            type: 'png',
             data: fs.readFileSync(logo).buffer,
             transformation: {
               width: 1150 / 18,
